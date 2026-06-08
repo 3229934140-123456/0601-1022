@@ -1,0 +1,8 @@
+data_dir: data
+factors_file: factors.yaml
+logs_dir: logs
+mapping_file: field_mapping.yaml
+output_dir: output
+project_name: 测试项目
+reductions_file: reductions.yaml
+targets_file: targets.yaml
