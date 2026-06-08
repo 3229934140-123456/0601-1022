@@ -1,9 +1,6 @@
 import click
 import pandas as pd
 from tabulate import tabulate
-from datetime import datetime
-from ..config import Config
-from ..logger import CommandLogger
 from ..utils import safe_float, format_number
 
 
@@ -20,8 +17,8 @@ def compare():
 @click.pass_context
 def monthly_compare(ctx, input_file, year, group_by):
     """月度排放对比"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -115,8 +112,8 @@ def monthly_compare(ctx, input_file, year, group_by):
 @click.pass_context
 def department_summary(ctx, input_file, scope):
     """部门排放汇总"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -193,8 +190,8 @@ def department_summary(ctx, input_file, scope):
 @click.pass_context
 def period_compare(ctx, input_file, start1, end1, start2, end2):
     """两期排放对比"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")

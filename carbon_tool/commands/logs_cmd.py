@@ -1,130 +1,67 @@
 import click
+import json
+from datetime import datetime
+from pathlib import Path
 from tabulate import tabulate
-from ..config import Config
-from ..logger import CommandLogger
 
 
-@click.group()
-def logs():
-    """命令执行日志管理"""
-    pass
-
-
-@logs.command('list')
-@click.option('--limit', '-n', default=20, type=int, help='显示条数（默认20）')
-@click.option('--command', '-c', help='按命令筛选')
-@click.option('--status', '-s', help='按状态筛选（success/failed）')
+@click.command('logs')
+@click.option('--limit', '-n', default=20, type=int, help='显示最近 N 条 (默认20)')
+@click.option('--command', '-c', help='按命令过滤')
+@click.option('--status', '-s', help='按状态过滤 (success/failed)')
+@click.option('--today', is_flag=True, help='仅显示今天的日志')
 @click.pass_context
-def list_logs(ctx, limit, command, status):
+def logs(ctx, limit, command, status, today):
     """查看命令执行日志"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger_obj = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
         ctx.exit(1)
 
     try:
-        all_logs = logger.list_logs(limit=1000, command_filter=command)
+        records = logger_obj.list_logs(limit=1000)
 
-        if status:
-            all_logs = [l for l in all_logs if l.get('status') == status]
-
-        logs = all_logs[-limit:]
-
-        if not logs:
-            click.echo("📋 暂无日志记录")
+        if not records:
+            click.echo("📭 暂无日志记录")
             return
 
-        click.echo(f"📋 命令执行日志 (共 {len(logs)} 条，最近 {limit} 条):")
+        filtered = records
+        if command:
+            filtered = [r for r in filtered if command in r.get('command', '')]
+        if status:
+            filtered = [r for r in filtered if r.get('status') == status]
+        if today:
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            filtered = [r for r in filtered if r.get('timestamp', '').startswith(today_str)]
+
+        if not filtered:
+            click.echo("🔍 没有匹配的日志记录")
+            return
+
+        recent = filtered[-limit:]
+
+        click.echo(f"📜 命令执行日志 (共 {len(filtered)} 条，显示最近 {len(recent)} 条):")
         click.echo("")
 
         table = []
-        for log in reversed(logs):
-            status_icon = "✅" if log.get('status') == 'success' else "❌"
-            table.append([
-                log.get('timestamp', '')[:19],
-                log.get('command', ''),
-                status_icon,
-                log.get('message', '')[:50]
-            ])
+        for r in recent:
+            ts = r.get('timestamp', '')[:19].replace('T', ' ')
+            cmd = r.get('command', '')
+            st = r.get('status', '')
+            status_icon = "✅" if st == 'success' else "❌"
+            detail = r.get('message', '')[:30] if r.get('message') else ''
+            table.append([ts, f"{status_icon} {st}", cmd, detail])
 
-        click.echo(tabulate(table, headers=['时间', '命令', '状态', '消息'], tablefmt='simple'))
+        click.echo(tabulate(table, headers=['时间', '状态', '命令', '详情'], tablefmt='simple'))
 
-    except Exception as e:
-        click.echo(f"❌ 读取日志失败: {e}")
-        ctx.exit(1)
+        total = len(filtered)
+        success_count = sum(1 for r in filtered if r.get('status') == 'success')
+        failed_count = sum(1 for r in filtered if r.get('status') == 'failed')
 
-
-@logs.command('show')
-@click.argument('index', type=int, default=-1)
-@click.pass_context
-def show_log(ctx, index):
-    """查看日志详情（-1表示最新一条）"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-
-    if not config.is_initialized():
-        click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
-        ctx.exit(1)
-
-    try:
-        logs = logger.list_logs(limit=1000)
-        if not logs:
-            click.echo("📋 暂无日志记录")
-            return
-
-        if index < 0:
-            log_entry = logs[index]
-        else:
-            log_entry = logs[index] if index < len(logs) else logs[-1]
-
-        import json
-        click.echo("📋 日志详情:")
-        click.echo("-" * 50)
-        click.echo(f"   时间: {log_entry.get('timestamp', '')}")
-        click.echo(f"   命令: {log_entry.get('command', '')}")
-        click.echo(f"   状态: {log_entry.get('status', '')}")
-        click.echo(f"   消息: {log_entry.get('message', '')}")
-        click.echo(f"   参数:")
-        args = log_entry.get('args', {})
-        if args:
-            for k, v in args.items():
-                click.echo(f"     - {k}: {v}")
-        details = log_entry.get('details', {})
-        if details:
-            click.echo(f"   详情:")
-            for k, v in details.items():
-                click.echo(f"     - {k}: {v}")
+        click.echo(f"\n📊 统计: 总计 {total} 条, 成功 {success_count} 条, 失败 {failed_count} 条")
 
     except Exception as e:
         click.echo(f"❌ 读取日志失败: {e}")
-        ctx.exit(1)
-
-
-@logs.command('clear')
-@click.option('--yes', '-y', is_flag=True, help='确认清除')
-@click.pass_context
-def clear_logs(ctx, yes):
-    """清除所有日志"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-
-    if not config.is_initialized():
-        click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
-        ctx.exit(1)
-
-    try:
-        if not yes:
-            click.confirm("确定要清除所有命令执行日志吗？", abort=True)
-
-        if logger.clear_logs():
-            click.echo("✅ 日志已清除")
-        else:
-            click.echo("⚠️  没有日志文件可清除")
-
-    except click.Abort:
-        click.echo("取消清除")
-    except Exception as e:
-        click.echo(f"❌ 清除失败: {e}")
         ctx.exit(1)

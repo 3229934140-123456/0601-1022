@@ -1,10 +1,8 @@
 import click
 import pandas as pd
 import uuid
+import math
 from tabulate import tabulate
-from ..config import Config
-from ..logger import CommandLogger
-from ..data_manager import DataManager
 from ..utils import safe_float, format_number
 
 
@@ -14,16 +12,79 @@ def calc():
     pass
 
 
+UNIT_CONVERSIONS = {
+    'electricity': {
+        'kWh': {'MWh': 0.001, 'kWh': 1.0},
+        'MWh': {'kWh': 1000.0, 'MWh': 1.0},
+    },
+    'volume': {
+        'm³': {'万m³': 0.0001, 'm³': 1.0, 'L': 1000.0},
+        '万m³': {'m³': 10000.0, '万m³': 1.0},
+        'L': {'m³': 0.001, '万m³': 0.0000001, 'L': 1.0},
+    },
+    'mass': {
+        'kg': {'t': 0.001, 'kg': 1.0, 'g': 1000.0},
+        't': {'kg': 1000.0, 't': 1.0},
+        'g': {'kg': 0.001, 't': 0.000001, 'g': 1.0},
+    },
+}
+
+CATEGORY_UNIT_MAP = {
+    '外购电力': 'electricity',
+    '固定燃烧': 'volume',
+    '移动燃烧': 'volume',
+    '过程排放': 'mass',
+}
+
+
+def _get_unit_category(unit):
+    unit = str(unit).strip().lower()
+    for cat, units in UNIT_CONVERSIONS.items():
+        for u in units:
+            if u.lower() == unit:
+                return cat
+    return None
+
+
+def _convert_unit(value, from_unit, to_unit):
+    from_unit = str(from_unit).strip()
+    to_unit = str(to_unit).strip()
+    if from_unit == to_unit:
+        return value, ''
+    cat = _get_unit_category(from_unit)
+    if not cat:
+        return value, ''
+    cat_units = UNIT_CONVERSIONS.get(cat, {})
+    if from_unit not in cat_units or to_unit not in cat_units[from_unit]:
+        return value, ''
+    factor = cat_units[from_unit][to_unit]
+    converted = value * factor
+    note = f"{value:g} {from_unit} = {converted:g} {to_unit}"
+    return converted, note
+
+
+def _extract_factor_unit(unit_str):
+    if not unit_str:
+        return '', ''
+    unit_str = str(unit_str)
+    if '/' in unit_str:
+        parts = unit_str.split('/')
+        if len(parts) >= 2:
+            return parts[0].strip(), parts[1].strip()
+    return unit_str.strip(), ''
+
+
 @calc.command('run')
 @click.option('--input', '-i', 'input_file', default='emissions_mapped.csv', help='输入文件名')
 @click.option('--output', '-o', default='emissions_calculated.csv', help='输出文件名')
 @click.option('--summary', '-s', is_flag=True, help='显示汇总信息')
+@click.option('--unit-check/--no-unit-check', default=True, help='是否启用单位自动换算')
 @click.pass_context
-def run_calc(ctx, input_file, output, summary):
-    """批量计算排放量"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+def run_calc(ctx, input_file, output, summary, unit_check):
+    """批量计算排放量（支持单位自动换算）"""
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -43,11 +104,11 @@ def run_calc(ctx, input_file, output, summary):
         calculated = 0
         missing_factor = 0
         missing_activity = 0
+        unit_converted = 0
         missing_records = []
 
         if 'id' not in df.columns:
             df['id'] = [str(uuid.uuid4())[:8] for _ in range(len(df))]
-
         if 'emissions' not in df.columns:
             df['emissions'] = 0.0
         if 'emissions_unit' not in df.columns:
@@ -58,10 +119,17 @@ def run_calc(ctx, input_file, output, summary):
             df['category'] = ''
         if 'factor_unit' not in df.columns:
             df['factor_unit'] = ''
+        if 'original_activity_data' not in df.columns:
+            df['original_activity_data'] = ''
+        if 'original_activity_unit' not in df.columns:
+            df['original_activity_unit'] = ''
+        if 'conversion_note' not in df.columns:
+            df['conversion_note'] = ''
 
         for idx, row in df.iterrows():
             source_type = str(row.get('source_type', '')).strip()
             activity_data = safe_float(row.get('activity_data', 0))
+            activity_unit = str(row.get('activity_unit', '')).strip()
             emission_factor = safe_float(row.get('emission_factor', 0))
 
             if activity_data == 0:
@@ -74,14 +142,15 @@ def run_calc(ctx, input_file, output, summary):
                 })
                 continue
 
+            ef_obj = None
             if emission_factor == 0 and source_type:
-                ef = factors.get(source_type)
-                if ef:
-                    emission_factor = ef.factor
-                    df.at[idx, 'emission_factor'] = ef.factor
-                    df.at[idx, 'factor_unit'] = ef.unit
-                    df.at[idx, 'scope'] = ef.scope
-                    df.at[idx, 'category'] = ef.category
+                ef_obj = factors.get(source_type)
+                if ef_obj:
+                    emission_factor = ef_obj.factor
+                    df.at[idx, 'emission_factor'] = ef_obj.factor
+                    df.at[idx, 'factor_unit'] = ef_obj.unit
+                    df.at[idx, 'scope'] = ef_obj.scope
+                    df.at[idx, 'category'] = ef_obj.category
                 else:
                     missing_factor += 1
                     missing_records.append({
@@ -92,11 +161,31 @@ def run_calc(ctx, input_file, output, summary):
                     })
                     continue
             elif emission_factor > 0 and source_type and not row.get('scope'):
-                ef = factors.get(source_type)
-                if ef:
-                    df.at[idx, 'scope'] = ef.scope
-                    df.at[idx, 'category'] = ef.category
-                    df.at[idx, 'factor_unit'] = ef.unit
+                ef_obj = factors.get(source_type)
+                if ef_obj:
+                    df.at[idx, 'scope'] = ef_obj.scope
+                    df.at[idx, 'category'] = ef_obj.category
+                    df.at[idx, 'factor_unit'] = ef_obj.unit
+
+            conv_note = ''
+            original_data = activity_data
+            original_unit = activity_unit
+
+            if unit_check and ef_obj and activity_unit:
+                factor_emission_unit, factor_activity_unit = _extract_factor_unit(ef_obj.unit)
+                if factor_activity_unit and activity_unit != factor_activity_unit:
+                    converted_data, note = _convert_unit(
+                        activity_data, activity_unit, factor_activity_unit
+                    )
+                    if note:
+                        activity_data = converted_data
+                        conv_note = note
+                        unit_converted += 1
+                        df.at[idx, 'original_activity_data'] = original_data
+                        df.at[idx, 'original_activity_unit'] = original_unit
+                        df.at[idx, 'conversion_note'] = note
+                        df.at[idx, 'activity_data'] = converted_data
+                        df.at[idx, 'activity_unit'] = factor_activity_unit
 
             emissions = activity_data * emission_factor
             df.at[idx, 'emissions'] = emissions
@@ -108,6 +197,7 @@ def run_calc(ctx, input_file, output, summary):
         click.echo(f"✅ 计算完成")
         click.echo(f"   总记录数: {total_rows}")
         click.echo(f"   成功计算: {calculated} 条")
+        click.echo(f"   单位换算: {unit_converted} 条")
         click.echo(f"   缺少活动数据: {missing_activity} 条")
         click.echo(f"   缺少排放因子: {missing_factor} 条")
 
@@ -129,6 +219,7 @@ def run_calc(ctx, input_file, output, summary):
                    details={
                        'total_rows': total_rows,
                        'calculated': calculated,
+                       'unit_converted': unit_converted,
                        'missing_activity': missing_activity,
                        'missing_factor': missing_factor,
                        'total_emissions': total_emissions
@@ -136,6 +227,8 @@ def run_calc(ctx, input_file, output, summary):
 
     except Exception as e:
         click.echo(f"❌ 计算失败: {e}")
+        import traceback
+        traceback.print_exc()
         logger.log('calc.run', {'input': input_file, 'output': output}, 'failed', str(e))
         ctx.exit(1)
 
@@ -146,8 +239,8 @@ def run_calc(ctx, input_file, output, summary):
 @click.pass_context
 def summary(ctx, input_file, group_by):
     """查看排放汇总"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -176,9 +269,9 @@ def summary(ctx, input_file, group_by):
 @click.pass_context
 def scope_classify(ctx, input_file, set_scope):
     """范围分类管理"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -246,22 +339,19 @@ def _print_summary(df, group_by='scope'):
 
     total = df['emissions'].sum()
 
-    if group_by == 'scope':
-        group_name = '范围'
-    elif group_by == 'department':
-        group_name = '部门'
-    elif group_by == 'category':
-        group_name = '类别'
-    elif group_by == 'source_type':
-        group_name = '能源类型'
-    else:
-        group_name = group_by
+    group_names = {
+        'scope': '范围',
+        'department': '部门',
+        'category': '类别',
+        'source_type': '能源类型',
+    }
+    group_name = group_names.get(group_by, group_by)
 
     if group_by in df.columns:
         summary = df.groupby(group_by, dropna=False)['emissions'].sum().reset_index()
         summary.columns = [group_name, '排放量 (tCO2e)']
         summary = summary.sort_values('排放量 (tCO2e)', ascending=False)
-        summary['占比'] = summary['排放量 (tCO2e)'] / total * 100
+        summary['占比 (%)'] = summary['排放量 (tCO2e)'] / total * 100
 
         click.echo(f"\n📊 按{group_name}汇总:")
         click.echo(tabulate(summary, headers='keys', tablefmt='simple',

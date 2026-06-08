@@ -2,7 +2,7 @@ import yaml
 import uuid
 from pathlib import Path
 from typing import List, Dict, Optional
-from .models import EmissionFactor, FieldMapping, Target, ReductionRecord
+from .models import EmissionFactor, FieldMapping, Target, ReductionRecord, ProductAllocation
 
 
 class DataManager:
@@ -165,3 +165,28 @@ class DataManager:
         reductions.append(record)
         self.save_reductions(reductions)
         return record.id
+
+    def load_allocations(self) -> List[ProductAllocation]:
+        data = []
+        if self.config.allocations_file.exists():
+            with open(self.config.allocations_file, 'r', encoding='utf-8') as f:
+                raw = yaml.safe_load(f) or []
+            for item in raw:
+                data.append(ProductAllocation(
+                    product=item.get('product', ''),
+                    allocation_ratio=float(item.get('allocation_ratio', 0)),
+                    department=item.get('department', ''),
+                ))
+        return data
+
+    def save_allocations(self, allocations: List[ProductAllocation]):
+        data = []
+        for a in allocations:
+            data.append({
+                'product': a.product,
+                'allocation_ratio': a.allocation_ratio,
+                'department': a.department,
+            })
+        self.config.allocations_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.config.allocations_file, 'w', encoding='utf-8') as f:
+            yaml.dump(data, f, default_flow_style=False, allow_unicode=True)

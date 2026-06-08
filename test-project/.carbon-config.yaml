@@ -1,0 +1,9 @@
+allocations_file: product_allocations.yaml
+data_dir: data
+factors_file: factors.yaml
+logs_dir: logs
+mapping_file: field_mapping.yaml
+output_dir: output
+project_name: test-project
+reductions_file: reductions.yaml
+targets_file: targets.yaml

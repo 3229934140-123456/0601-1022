@@ -1,8 +1,6 @@
 import click
 import pandas as pd
 from tabulate import tabulate
-from ..config import Config
-from ..logger import CommandLogger
 from ..utils import safe_float, format_number
 
 
@@ -20,8 +18,8 @@ def check():
 @click.pass_context
 def anomaly_check(ctx, input_file, threshold, group_by, output_file):
     """异常波动检查"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -78,7 +76,7 @@ def anomaly_check(ctx, input_file, threshold, group_by, output_file):
             click.echo(f"✅ 未发现超过 {threshold}% 的异常波动")
             logger.log('check.anomaly', {'input': input_file, 'threshold': threshold}, 'success',
                        '未发现异常波动')
-            return
+            return pd.DataFrame()
 
         click.echo(f"⚠️  发现 {len(anomalies)} 条异常波动记录 (阈值: {threshold}%):")
         click.echo("")
@@ -111,6 +109,8 @@ def anomaly_check(ctx, input_file, threshold, group_by, output_file):
             'input': input_file, 'threshold': threshold, 'group_by': group_by
         }, 'success', f'发现{len(anomalies)}条异常波动')
 
+        return pd.DataFrame(anomalies)
+
     except Exception as e:
         click.echo(f"❌ 检查失败: {e}")
         logger.log('check.anomaly', {'input': input_file, 'threshold': threshold}, 'failed', str(e))
@@ -122,8 +122,8 @@ def anomaly_check(ctx, input_file, threshold, group_by, output_file):
 @click.pass_context
 def missing_check(ctx, input_file):
     """缺失值检查"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -182,8 +182,8 @@ def missing_check(ctx, input_file):
 @click.pass_context
 def duplicate_check(ctx, input_file, keys):
     """重复数据检查"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")

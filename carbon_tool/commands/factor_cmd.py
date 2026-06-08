@@ -1,8 +1,5 @@
 import click
 from tabulate import tabulate
-from ..config import Config
-from ..logger import CommandLogger
-from ..data_manager import DataManager
 from ..models import EmissionFactor
 
 
@@ -18,9 +15,9 @@ def factor():
 @click.pass_context
 def list_factors(ctx, scope, category):
     """列出所有排放因子"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -72,9 +69,9 @@ def list_factors(ctx, scope, category):
 @click.pass_context
 def add_factor(ctx, name, value, unit, scope, category, description):
     """新增排放因子"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -112,9 +109,9 @@ def add_factor(ctx, name, value, unit, scope, category, description):
 @click.pass_context
 def update_factor(ctx, name, value, unit, scope, category, description):
     """更新排放因子"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -154,9 +151,9 @@ def update_factor(ctx, name, value, unit, scope, category, description):
 @click.pass_context
 def delete_factor(ctx, name, yes):
     """删除排放因子"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -191,9 +188,9 @@ def delete_factor(ctx, name, yes):
 @click.pass_context
 def show_factor(ctx, name):
     """查看排放因子详情"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")

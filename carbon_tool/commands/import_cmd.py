@@ -2,9 +2,7 @@ import click
 import pandas as pd
 from pathlib import Path
 from tabulate import tabulate
-from ..config import Config
-from ..logger import CommandLogger
-from ..data_manager import DataManager
+from ..models import FieldMapping
 from ..utils import read_file, safe_float
 
 
@@ -16,14 +14,16 @@ def import_cmd():
 
 @import_cmd.command('file')
 @click.argument('file_path')
-@click.option('--sheet', '-s', default=0, help='Excel工作表名称或索引')
+@click.option('--sheet', '-s', default=0, help='Excel工作表名称或索引（0=第一个）')
 @click.option('--output', '-o', default='emissions_raw.csv', help='输出文件名')
 @click.option('--preview', '-p', is_flag=True, help='仅预览前10行数据，不保存')
+@click.option('--list-sheets', '-ls', is_flag=True, help='列出Excel文件的所有工作表')
 @click.pass_context
-def import_file(ctx, file_path, sheet, output, preview):
+def import_file(ctx, file_path, sheet, output, preview, list_sheets):
     """从CSV/Excel文件导入排放数据"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -36,7 +36,22 @@ def import_file(ctx, file_path, sheet, output, preview):
         ctx.exit(1)
 
     try:
-        df = read_file(file_path, sheet)
+        suffix = file_path.suffix.lower()
+
+        if list_sheets and suffix in ['.xlsx', '.xls']:
+            excel_file = pd.ExcelFile(file_path, engine='openpyxl')
+            click.echo(f"📋 工作表列表 (共 {len(excel_file.sheet_names)} 个):")
+            for i, name in enumerate(excel_file.sheet_names):
+                click.echo(f"   [{i}] {name}")
+            logger.log('import', {'file': str(file_path), 'action': 'list_sheets'},
+                       'success', f'列出{len(excel_file.sheet_names)}个工作表')
+            return
+
+        sheet_param = sheet
+        if isinstance(sheet, str) and sheet.isdigit():
+            sheet_param = int(sheet)
+
+        df = read_file(file_path, sheet_param)
         click.echo(f"✅ 成功读取文件: {file_path}")
         click.echo(f"   数据行数: {len(df)}")
         click.echo(f"   列数: {len(df.columns)}")
@@ -45,6 +60,27 @@ def import_file(ctx, file_path, sheet, output, preview):
         if preview:
             click.echo("\n📋 数据预览 (前10行):")
             click.echo(tabulate(df.head(10), headers='keys', tablefmt='simple', showindex=False))
+
+        mappings = dm.load_mapping()
+        if mappings:
+            matched = []
+            suggestions = []
+            target_fields = {m.target_field: m.source_field for m in mappings}
+            for col in df.columns:
+                if col in target_fields.values():
+                    matched.append(col)
+            if matched:
+                click.echo(f"\n💡 字段映射匹配: 已匹配 {len(matched)} 个字段")
+            else:
+                click.echo(f"\n💡 建议字段映射:")
+                for m in mappings:
+                    suggestions.append([m.source_field, m.target_field, m.data_type,
+                                        "是" if m.required else "否"])
+                click.echo(tabulate(suggestions,
+                                    headers=['源字段（模板）', '目标字段', '类型', '必填'],
+                                    tablefmt='simple'))
+
+        if preview:
             logger.log('import', {'file': str(file_path), 'action': 'preview'}, 'success',
                        f'预览{len(df)}行数据')
             return
@@ -52,8 +88,8 @@ def import_file(ctx, file_path, sheet, output, preview):
         output_path = config.data_dir / output
         df.to_csv(output_path, index=False, encoding='utf-8-sig')
         click.echo(f"\n💾 数据已保存到: {output_path}")
-
-        click.echo("\n💡 提示: 运行 'carbon-tool import map' 配置字段映射，然后使用 'carbon-tool calc' 计算排放量")
+        click.echo("\n💡 提示: 运行 'carbon-tool import map -l' 查看字段映射")
+        click.echo("   运行 'carbon-tool import apply' 应用字段映射后进行计算")
 
         logger.log('import', {'file': str(file_path), 'output': str(output_path)}, 'success',
                    f'导入{len(df)}行数据')
@@ -72,9 +108,9 @@ def import_file(ctx, file_path, sheet, output, preview):
 @click.pass_context
 def field_map(ctx, list_mapping, set_pair, remove, reset):
     """管理字段映射关系"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -82,7 +118,6 @@ def field_map(ctx, list_mapping, set_pair, remove, reset):
 
     try:
         if reset:
-            from ..models import FieldMapping
             default_mapping = [
                 FieldMapping(source_field='日期', target_field='date', data_type='date', required=True),
                 FieldMapping(source_field='部门', target_field='department', data_type='string', required=True),
@@ -117,7 +152,6 @@ def field_map(ctx, list_mapping, set_pair, remove, reset):
                     mapping_dict[source].target_field = target
                     click.echo(f"🔄 更新映射: {source} → {target}")
                 else:
-                    from ..models import FieldMapping
                     mapping_dict[source] = FieldMapping(
                         source_field=source,
                         target_field=target,
@@ -160,9 +194,9 @@ def field_map(ctx, list_mapping, set_pair, remove, reset):
 @click.pass_context
 def apply_mapping(ctx, input_file, output):
     """应用字段映射到数据"""
-    config = Config()
-    logger = CommandLogger(config.logs_dir)
-    dm = DataManager(config)
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")

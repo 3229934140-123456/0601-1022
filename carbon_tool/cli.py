@@ -1,5 +1,9 @@
 import click
+from pathlib import Path
 from . import __version__
+from .config import Config
+from .logger import CommandLogger
+from .data_manager import DataManager
 from .commands.init_cmd import init
 from .commands.import_cmd import import_cmd
 from .commands.factor_cmd import factor
@@ -41,7 +45,12 @@ def cli(ctx, project_path):
       7. carbon-tool report generate -f markdown
     """
     ctx.ensure_object(dict)
-    ctx.obj['project_path'] = project_path
+    proj_path = Path(project_path).resolve()
+    config = Config(proj_path)
+    ctx.obj['project_path'] = str(proj_path)
+    ctx.obj['config'] = config
+    ctx.obj['logger'] = CommandLogger(config.logs_dir)
+    ctx.obj['dm'] = DataManager(config)
 
 
 cli.add_command(init)

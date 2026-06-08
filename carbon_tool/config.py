@@ -13,6 +13,7 @@ class Config:
         'mapping_file': 'field_mapping.yaml',
         'targets_file': 'targets.yaml',
         'reductions_file': 'reductions.yaml',
+        'allocations_file': 'product_allocations.yaml',
     }
 
     def __init__(self, project_path=None):
@@ -78,6 +79,10 @@ class Config:
     @property
     def reductions_file(self):
         return self.project_path / self.get('reductions_file', 'reductions.yaml')
+
+    @property
+    def allocations_file(self):
+        return self.project_path / self.get('allocations_file', 'product_allocations.yaml')
 
     def is_initialized(self):
         return self.config_file.exists()

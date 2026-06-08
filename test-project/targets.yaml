@@ -1,0 +1,7 @@
+- description: 2024年度减排目标
+  scope1_target: 500
+  scope2_target: 2000
+  scope3_target: 100
+  total_target: 2600
+  unit: tCO2e
+  year: 2024

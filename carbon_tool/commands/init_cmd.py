@@ -4,20 +4,26 @@ from pathlib import Path
 from ..config import Config
 from ..logger import CommandLogger
 from ..data_manager import DataManager
-from ..models import EmissionFactor
+from ..models import EmissionFactor, FieldMapping
 
 
 @click.command()
 @click.option('--name', '-n', default='carbon-project', help='项目名称')
-@click.option('--path', '-p', default='.', help='项目路径（默认为当前目录）')
+@click.option('--path', '-p', default=None, help='项目路径（默认使用 --project-path）')
 @click.option('--force', '-f', is_flag=True, help='强制初始化，覆盖已有配置')
 @click.pass_context
 def init(ctx, name, path, force):
     """初始化碳中和管理项目"""
-    project_path = Path(path).resolve()
-
-    config = Config(project_path)
-    logger = CommandLogger(config.logs_dir)
+    if path:
+        project_path = Path(path).resolve()
+        config = Config(project_path)
+        logger = CommandLogger(config.logs_dir)
+        dm = DataManager(config)
+    else:
+        config = ctx.obj['config']
+        logger = ctx.obj['logger']
+        dm = ctx.obj['dm']
+        project_path = config.project_path
 
     try:
         if config.is_initialized() and not force:
@@ -27,8 +33,6 @@ def init(ctx, name, path, force):
 
         config.set('project_name', name)
         config.ensure_dirs()
-
-        dm = DataManager(config)
 
         default_factors = {
             '电力-华东电网': EmissionFactor(
@@ -82,7 +86,6 @@ def init(ctx, name, path, force):
         }
         dm.save_factors(default_factors)
 
-        from ..models import FieldMapping
         default_mapping = [
             FieldMapping(source_field='日期', target_field='date', data_type='date', required=True),
             FieldMapping(source_field='部门', target_field='department', data_type='string', required=True),
@@ -107,8 +110,8 @@ def init(ctx, name, path, force):
         click.echo("")
         click.echo("下一步操作:")
         click.echo(f"  1. 将排放数据放入 {config.data_dir} 目录")
-        click.echo(f"  2. 运行 'carbon-tool import <文件>' 导入数据")
-        click.echo(f"  3. 运行 'carbon-tool calc' 计算排放量")
+        click.echo(f"  2. 运行 'carbon-tool import file <文件名>' 导入数据")
+        click.echo(f"  3. 运行 'carbon-tool calc run' 计算排放量")
 
         logger.log('init', {'name': name, 'path': str(project_path)}, 'success',
                    f'项目初始化成功，预置{len(default_factors)}个排放因子')

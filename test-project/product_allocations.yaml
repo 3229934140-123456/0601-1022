@@ -1,0 +1,9 @@
+- allocation_ratio: 0.7
+  department: 生产部
+  product: 产品A
+- allocation_ratio: 0.2
+  department: 研发部
+  product: 产品B
+- allocation_ratio: 0.1
+  department: 销售部
+  product: 产品C
