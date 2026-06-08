@@ -1,0 +1,4 @@
+﻿date,department,source_type,activity_data,activity_unit,emission_factor,factor_unit,product,remarks
+2024-01-15,行政部,天然气,1000,m³,2.1622,kgCO2e/m³,,手填因子测试
+2024-02-20,生产部,柴油,500,kg,3.1644,tCO2e/t,产品A,kg单位换算测试
+2024-03-10,研发部,汽油,200,L,2.98,kgCO2e/L,产品B,手填汽油因子

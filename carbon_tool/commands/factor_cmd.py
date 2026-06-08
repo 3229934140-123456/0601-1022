@@ -297,3 +297,107 @@ def show_factor(ctx, name):
         click.echo(f"❌ 操作失败: {e}")
         logger.log('factor.show', {'name': name}, 'failed', str(e))
         ctx.exit(1)
+
+
+@factor.group('preset')
+def factor_preset():
+    """因子筛选预设管理（默认地区/年份/情景）"""
+    pass
+
+
+@factor_preset.command('set')
+@click.option('--region', help='默认地区')
+@click.option('--year', help='默认年份')
+@click.option('--scenario', help='默认情景')
+@click.pass_context
+def preset_set(ctx, region, year, scenario):
+    """设置项目默认的因子筛选条件"""
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+
+    if not config.is_initialized():
+        click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
+        ctx.exit(1)
+
+    try:
+        defaults = config.get('defaults', {}) or {}
+        changed = []
+
+        if region is not None:
+            defaults['region'] = region
+            changed.append(f"地区={region}")
+        if year is not None:
+            defaults['year'] = str(year)
+            changed.append(f"年份={year}")
+        if scenario is not None:
+            defaults['scenario'] = scenario
+            changed.append(f"情景={scenario}")
+
+        config.set('defaults', defaults)
+
+        click.echo("✅ 因子筛选预设已更新:")
+        for c in changed:
+            click.echo(f"   • {c}")
+
+        logger.log('factor.preset.set', {'region': region, 'year': year, 'scenario': scenario},
+                   'success', f'设置预设: {", ".join(changed)}')
+
+    except Exception as e:
+        click.echo(f"❌ 设置失败: {e}")
+        logger.log('factor.preset.set', {}, 'failed', str(e))
+        ctx.exit(1)
+
+
+@factor_preset.command('show')
+@click.pass_context
+def preset_show(ctx):
+    """查看当前因子筛选预设"""
+    config = ctx.obj['config']
+
+    if not config.is_initialized():
+        click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
+        ctx.exit(1)
+
+    defaults = config.get('defaults', {}) or {}
+    region = defaults.get('region', '')
+    year = defaults.get('year', '')
+    scenario = defaults.get('scenario', '')
+
+    click.echo("📋 当前因子筛选预设:")
+    click.echo(f"   地区:   {region or '(未设置)'}")
+    click.echo(f"   年份:   {year or '(未设置)'}")
+    click.echo(f"   情景:   {scenario or '(未设置)'}")
+
+    if not any([region, year, scenario]):
+        click.echo("\n💡 提示: 使用 'carbon-tool factor preset set --region 华东 --year 2023' 设置")
+
+
+@factor_preset.command('clear')
+@click.option('--yes', '-y', is_flag=True, help='确认清空')
+@click.pass_context
+def preset_clear(ctx, yes):
+    """清空所有因子筛选预设"""
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+
+    if not config.is_initialized():
+        click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
+        ctx.exit(1)
+
+    if not yes:
+        click.confirm("确定要清空所有因子筛选预设吗？", abort=True)
+
+    try:
+        defaults = config.get('defaults', {}) or {}
+        defaults['region'] = ''
+        defaults['year'] = ''
+        defaults['scenario'] = ''
+        config.set('defaults', defaults)
+
+        click.echo("✅ 因子筛选预设已清空")
+        logger.log('factor.preset.clear', {}, 'success', '清空预设')
+
+    except Exception as e:
+        click.echo(f"❌ 操作失败: {e}")
+        logger.log('factor.preset.clear', {}, 'failed', str(e))
+        ctx.exit(1)

@@ -1,0 +1,4 @@
+﻿date,department,source_type,activity_data,activity_unit,factor_unit,emission_factor,product,remarks
+2024-01,行政,电力,100,MWh,tCO2e/MWh,0.581,,
+2024-02,生产,天然气,500,m³,kgCO2e/m³,2.16,,
+2024-03,研发,柴油,50,t,kgCO2e/kg,3.16,,

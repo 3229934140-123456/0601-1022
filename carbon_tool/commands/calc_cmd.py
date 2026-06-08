@@ -149,6 +149,11 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags,
             if col not in df.columns:
                 df[col] = ''
         df['emissions_unit'] = 'tCO2e'
+        df['activity_data'] = pd.to_numeric(df['activity_data'], errors='coerce').astype(float).fillna(0.0)
+        df['emissions'] = pd.to_numeric(df['emissions'], errors='coerce').astype(float).fillna(0.0)
+        df['emission_factor'] = pd.to_numeric(df['emission_factor'], errors='coerce').astype(float).fillna(0.0)
+        df['original_activity_data'] = pd.to_numeric(df.get('original_activity_data', ''), 
+                                                     errors='coerce').astype(float).fillna(0.0)
         df['activity_unit'] = df['activity_unit'].astype(str).replace('nan', '').fillna('')
         df['factor_unit'] = df['factor_unit'].astype(str).replace('nan', '').fillna('')
 

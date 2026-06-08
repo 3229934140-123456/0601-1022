@@ -1,4 +1,6 @@
 import click
+import sys
+import locale
 from pathlib import Path
 from . import __version__
 from .config import Config
@@ -15,6 +17,19 @@ from .commands.report_cmd import report
 from .commands.export_cmd import export
 from .commands.logs_cmd import logs
 from .commands.history_cmd import history
+
+
+def _setup_utf8_output():
+    """确保 Windows 控制台输出 UTF-8"""
+    if sys.platform == 'win32':
+        try:
+            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stderr.reconfigure(encoding='utf-8')
+        except Exception:
+            pass
+
+
+_setup_utf8_output()
 
 
 @click.group()

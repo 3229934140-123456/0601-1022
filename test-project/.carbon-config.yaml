@@ -1,5 +1,8 @@
 allocations_file: product_allocations.yaml
 data_dir: data
+defaults:
+  region: 华东
+  year: '2022'
 factors_file: factors.yaml
 logs_dir: logs
 mapping_file: field_mapping.yaml

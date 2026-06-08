@@ -18,10 +18,22 @@
   required: false
   source_field: 单位
   target_field: activity_unit
+- data_type: string
+  required: false
+  source_field: 活动单位
+  target_field: activity_unit
 - data_type: float
   required: false
   source_field: 排放因子
   target_field: emission_factor
+- data_type: string
+  required: false
+  source_field: 因子单位
+  target_field: factor_unit
+- data_type: string
+  required: false
+  source_field: 排放因子单位
+  target_field: factor_unit
 - data_type: string
   required: false
   source_field: 产品
@@ -30,15 +42,3 @@
   required: false
   source_field: 备注
   target_field: remarks
-- data_type: string
-  required: false
-  source_field: 记录日期
-  target_field: date
-- data_type: string
-  required: false
-  source_field: 所属部门
-  target_field: department
-- data_type: string
-  required: false
-  source_field: 用量(MWh)
-  target_field: activity_data

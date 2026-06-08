@@ -1,0 +1,4 @@
+﻿date,department,source_type,activity_data,activity_unit,emission_factor,factor_unit,product,remarks,id,emissions,emissions_unit,scope,category,original_activity_data,original_activity_unit,conversion_note,factor_source,calc_status
+2024-01-15,行政部,天然气,1000.0,m³,2.1622,kgCO2e/m³,,手填因子测试,d598511d,2162.2,tCO2e,,,1000.0,m³,,手填,已计算
+2024-02-20,生产部,柴油,0.5,t,3.1644,tCO2e/t,产品A,kg单位换算测试,d0002e8a,1.5822,tCO2e,,,500.0,kg,500 kg = 0.5 t,手填,已计算
+2024-03-10,研发部,汽油,200.0,L,2.98,kgCO2e/L,产品B,手填汽油因子,4d0a5cfc,596.0,tCO2e,,,200.0,L,,手填,已计算

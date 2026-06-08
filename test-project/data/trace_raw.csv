@@ -1,0 +1,4 @@
+﻿source_file,source_sheet,source_row,日期,部门,能源类型,活动数据,单位,排放因子,因子单位,产品,备注
+test_manual_raw.csv,,2,2024-01-15,行政部,天然气,1000,m³,2.1622,kgCO2e/m³,,手填因子测试
+test_manual_raw.csv,,3,2024-02-20,生产部,柴油,500,kg,3.1644,tCO2e/t,产品A,kg单位换算测试
+test_manual_raw.csv,,4,2024-03-10,研发部,汽油,200,L,2.98,kgCO2e/L,产品B,手填汽油因子

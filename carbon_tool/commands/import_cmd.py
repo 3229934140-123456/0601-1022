@@ -29,6 +29,7 @@ def import_file(ctx, file_path, sheet, output, preview, list_sheets, append, no_
     config = ctx.obj['config']
     logger = ctx.obj['logger']
     dm = ctx.obj['dm']
+    audit = ctx.obj['audit']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -139,6 +140,24 @@ def import_file(ctx, file_path, sheet, output, preview, list_sheets, append, no_
             'sheet': sheet_name_display,
         }, 'success', f'导入{len(df) - existing_rows if append else len(df)}行数据')
 
+        audit.record(
+            command='import.file',
+            input_files=[str(file_path)],
+            output_file=str(output_path),
+            row_count=len(df) - existing_rows if append else len(df),
+            parameters={
+                'input_file': file_name,
+                'output_file': output,
+                'sheet': sheet_name_display,
+                'append': append,
+                'total_rows': len(df),
+                'existing_rows': existing_rows,
+                'new_rows': len(df) - existing_rows if append else len(df),
+            },
+            status='success',
+            message=f'导入{len(df) - existing_rows if append else len(df)}行数据',
+        )
+
     except Exception as e:
         click.echo(f"❌ 导入失败: {e}")
         logger.log('import', {'file': str(file_path)}, 'failed', str(e))
@@ -169,7 +188,10 @@ def field_map(ctx, list_mapping, set_pair, remove, reset):
                 FieldMapping(source_field='能源类型', target_field='source_type', data_type='string', required=True),
                 FieldMapping(source_field='活动数据', target_field='activity_data', data_type='float', required=True),
                 FieldMapping(source_field='单位', target_field='activity_unit', data_type='string', required=False),
+                FieldMapping(source_field='活动单位', target_field='activity_unit', data_type='string', required=False),
                 FieldMapping(source_field='排放因子', target_field='emission_factor', data_type='float', required=False),
+                FieldMapping(source_field='因子单位', target_field='factor_unit', data_type='string', required=False),
+                FieldMapping(source_field='排放因子单位', target_field='factor_unit', data_type='string', required=False),
                 FieldMapping(source_field='产品', target_field='product', data_type='string', required=False),
                 FieldMapping(source_field='备注', target_field='remarks', data_type='string', required=False),
             ]
@@ -262,21 +284,57 @@ def apply_mapping(ctx, input_file, output):
             click.echo("❌ 错误: 没有配置字段映射，请先运行 'carbon-tool import map --set'")
             ctx.exit(1)
 
-        rename_dict = {}
+        target_sources = {}
         missing_fields = []
         for m in mappings:
             if m.source_field in df.columns:
-                rename_dict[m.source_field] = m.target_field
+                if m.target_field not in target_sources:
+                    target_sources[m.target_field] = []
+                target_sources[m.target_field].append(m.source_field)
             elif m.required:
                 missing_fields.append(m.source_field)
+
+        for target in list(target_sources.keys()):
+            if target in df.columns and target not in target_sources[target]:
+                target_sources[target].insert(0, target)
+
+        for target in ['date', 'department', 'source_type', 'activity_data',
+                       'activity_unit', 'emission_factor', 'factor_unit',
+                       'product', 'remarks']:
+            if target in df.columns and target not in target_sources:
+                target_sources[target] = [target]
 
         if missing_fields:
             click.echo(f"⚠️  缺少必填字段: {', '.join(missing_fields)}")
 
-        df_mapped = df.rename(columns=rename_dict)
+        df_mapped = df.copy()
+        multi_source_targets = {}
+        for target, sources in target_sources.items():
+            if len(sources) > 1:
+                multi_source_targets[target] = sources
+
+        for target, sources in target_sources.items():
+            if len(sources) == 1 and sources[0] == target:
+                pass
+            elif len(sources) == 1:
+                df_mapped = df_mapped.rename(columns={sources[0]: target})
+            else:
+                base_source = sources[0]
+                merged_col = df[base_source].copy()
+                for i in range(1, len(sources)):
+                    src = sources[i]
+                    if src not in df.columns:
+                        continue
+                    mask = merged_col.isna() | (merged_col.astype(str).str.strip() == '')
+                    merged_col[mask] = df[src][mask]
+                cols_to_drop = [s for s in sources if s in df.columns and s != target]
+                if cols_to_drop:
+                    df_mapped = df_mapped.drop(columns=cols_to_drop)
+                df_mapped[target] = merged_col
 
         for target_col in ['date', 'department', 'source_type', 'activity_data',
-                           'activity_unit', 'emission_factor', 'product', 'remarks']:
+                           'activity_unit', 'emission_factor', 'factor_unit',
+                           'product', 'remarks']:
             if target_col not in df_mapped.columns:
                 df_mapped[target_col] = ''
 
@@ -288,17 +346,22 @@ def apply_mapping(ctx, input_file, output):
             input_files=[str(input_path)],
             output_file=str(output_path),
             row_count=len(df_mapped),
-            parameters={'input': input_file, 'output': output, 'mappings': len(rename_dict)},
+            parameters={'input': input_file, 'output': output, 'mappings': len(target_sources)},
             status='success',
-            message=f'应用{len(rename_dict)}个字段映射',
+            message=f'应用{len(target_sources)}个字段映射',
         )
 
         click.echo(f"✅ 字段映射应用完成")
-        click.echo(f"   映射字段数: {len(rename_dict)}")
+        click.echo(f"   映射字段数: {len(target_sources)}")
         click.echo(f"   输出文件: {output_path}")
 
+        if multi_source_targets:
+            click.echo(f"\n🔀 多源列合并（非空优先）:")
+            for target, sources in multi_source_targets.items():
+                click.echo(f"   • {target} ← {', '.join(sources)}")
+
         logger.log('import.apply', {'input': input_file, 'output': output}, 'success',
-                   f'应用{len(rename_dict)}个字段映射')
+                   f'应用{len(target_sources)}个字段映射')
 
     except Exception as e:
         click.echo(f"❌ 应用映射失败: {e}")

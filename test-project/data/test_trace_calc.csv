@@ -1,0 +1,13 @@
+﻿source_file,source_sheet,source_row,记录日期,所属部门,source_type,用量(MWh),product,remarks,date,department,activity_data,activity_unit,emission_factor,factor_unit,id,emissions,emissions_unit,scope,category,original_activity_data,original_activity_unit,conversion_note,factor_source,calc_status
+sample_emissions.xlsx,电力消耗数据,2,2024-01-15,生产部,电力,500,产品A,1月生产,,,,,,,738b55d3,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,3,2024-02-15,生产部,电力,480,产品A,2月生产,,,,,,,7febd383,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,4,2024-03-15,生产部,电力,520,产品A,3月生产,,,,,,,3f1c7176,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,5,2024-04-15,生产部,电力,550,产品A,4月生产,,,,,,,08bdbac3,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,6,2024-05-15,行政部,电力,120,,办公用电,,,,,,,3fab196e,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,7,2024-06-15,行政部,电力,130,,办公用电,,,,,,,0929c855,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,8,2024-07-15,研发部,电力,200,产品B,研发测试,,,,,,,77e4d8cd,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,9,2024-08-15,研发部,电力,210,产品B,研发测试,,,,,,,ebf96011,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,10,2024-09-15,销售部,电力,80,,办公,,,,,,,b098bc81,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,11,2024-10-15,销售部,电力,85,,办公,,,,,,,6e154d92,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,12,2024-11-15,生产部,电力,600,产品A,旺季生产,,,,,,,fe52d060,0.0,tCO2e,,,,,,,未计算-无活动数据
+sample_emissions.xlsx,电力消耗数据,13,2024-12-15,生产部,电力,620,产品A,旺季生产,,,,,,,f9e9c9ee,0.0,tCO2e,,,,,,,未计算-无活动数据
