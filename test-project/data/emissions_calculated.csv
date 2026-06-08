@@ -1,21 +1,13 @@
-﻿date,department,source_type,activity_data,activity_unit,product,remarks,id,emissions,emissions_unit,scope,category,factor_unit,original_activity_data,original_activity_unit,conversion_note,emission_factor
-2024-01-15,生产部,电力,500.0,MWh,产品A,生产用电,75e32c3f,290.5,tCO2e,范围2,外购电力,tCO2e/MWh,500000.0,kWh,500000 kWh = 500 MWh,0.581
-2024-02-15,生产部,电力,480.0,MWh,产品A,生产用电,4c167c38,278.88,tCO2e,范围2,外购电力,tCO2e/MWh,480000.0,kWh,480000 kWh = 480 MWh,0.581
-2024-03-15,生产部,电力,520.0,MWh,产品A,生产用电,8006afab,302.12,tCO2e,范围2,外购电力,tCO2e/MWh,520000.0,kWh,520000 kWh = 520 MWh,0.581
-2024-04-15,生产部,电力,550.0,MWh,产品A,生产用电,5e13891a,319.54999999999995,tCO2e,范围2,外购电力,tCO2e/MWh,550000.0,kWh,550000 kWh = 550 MWh,0.581
-2024-05-15,行政部,电力,120.0,MWh,,办公用电,567a39a6,69.72,tCO2e,范围2,外购电力,tCO2e/MWh,120000.0,kWh,120000 kWh = 120 MWh,0.581
-2024-06-15,行政部,电力,130.0,MWh,,办公用电,76f5aa73,75.53,tCO2e,范围2,外购电力,tCO2e/MWh,130000.0,kWh,130000 kWh = 130 MWh,0.581
-2024-07-15,研发部,电力,200.0,MWh,产品B,研发用电,b2c77d95,116.19999999999999,tCO2e,范围2,外购电力,tCO2e/MWh,200000.0,kWh,200000 kWh = 200 MWh,0.581
-2024-08-15,研发部,电力,210.0,MWh,产品B,研发用电,abdf62c9,122.00999999999999,tCO2e,范围2,外购电力,tCO2e/MWh,210000.0,kWh,210000 kWh = 210 MWh,0.581
-2024-09-15,销售部,电力,80.0,MWh,,办公用电,3c1c8667,46.48,tCO2e,范围2,外购电力,tCO2e/MWh,80000.0,kWh,80000 kWh = 80 MWh,0.581
-2024-10-15,销售部,电力,85.0,MWh,,办公用电,0d56e4ac,49.385,tCO2e,范围2,外购电力,tCO2e/MWh,85000.0,kWh,85000 kWh = 85 MWh,0.581
-2024-11-15,生产部,电力,600.0,MWh,产品A,旺季生产,273c2aed,348.59999999999997,tCO2e,范围2,外购电力,tCO2e/MWh,600000.0,kWh,600000 kWh = 600 MWh,0.581
-2024-12-15,生产部,电力,620.0,MWh,产品A,旺季生产,6e7d5aca,360.21999999999997,tCO2e,范围2,外购电力,tCO2e/MWh,620000.0,kWh,620000 kWh = 620 MWh,0.581
-2024-01-20,生产部,天然气,1.5,万m³,产品A,锅炉燃料,0bc8b32a,3.2432999999999996,tCO2e,范围1,固定燃烧,tCO2e/万m³,15000.0,m³,15000 m³ = 1.5 万m³,2.1622
-2024-02-20,生产部,天然气,1.4000000000000001,万m³,产品A,锅炉燃料,cc54dbf2,3.02708,tCO2e,范围1,固定燃烧,tCO2e/万m³,14000.0,m³,14000 m³ = 1.4 万m³,2.1622
-2024-03-20,生产部,天然气,1.6,万m³,产品A,锅炉燃料,28c19497,3.45952,tCO2e,范围1,固定燃烧,tCO2e/万m³,16000.0,m³,16000 m³ = 1.6 万m³,2.1622
-2024-04-20,生产部,天然气,1.7000000000000002,万m³,产品A,锅炉燃料,939945f8,3.6757400000000002,tCO2e,范围1,固定燃烧,tCO2e/万m³,17000.0,m³,17000 m³ = 1.7 万m³,2.1622
-2024-01-10,物流部,柴油,8.0,t,,运输车辆,056555df,25.2936,tCO2e,范围1,移动燃烧,tCO2e/t,,,,3.1617
-2024-02-10,物流部,柴油,7.5,t,,运输车辆,17139b51,23.71275,tCO2e,范围1,移动燃烧,tCO2e/t,,,,3.1617
-2024-03-10,物流部,柴油,9.0,t,,运输车辆,4e945d03,28.4553,tCO2e,范围1,移动燃烧,tCO2e/t,,,,3.1617
-2024-04-10,物流部,柴油,8.5,t,,运输车辆,05ea04d3,26.874450000000003,tCO2e,范围1,移动燃烧,tCO2e/t,,,,3.1617
+﻿source_file,source_sheet,source_row,date,department,source_type,activity_data,product,remarks,activity_unit,emission_factor,id,emissions,emissions_unit,scope,category,factor_unit,original_activity_data,original_activity_unit,conversion_note,factor_source
+sample_emissions.xlsx,电力消耗数据,2,2024-01-15,生产部,电力,500,产品A,1月生产,nan,0.581,f36cb93d,290.5,tCO2e,范围2,外购电力,tCO2e/MWh,500.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,3,2024-02-15,生产部,电力,480,产品A,2月生产,nan,0.581,1114402f,278.88,tCO2e,范围2,外购电力,tCO2e/MWh,480.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,4,2024-03-15,生产部,电力,520,产品A,3月生产,nan,0.581,7aefb184,302.12,tCO2e,范围2,外购电力,tCO2e/MWh,520.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,5,2024-04-15,生产部,电力,550,产品A,4月生产,nan,0.581,13ec18ef,319.54999999999995,tCO2e,范围2,外购电力,tCO2e/MWh,550.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,6,2024-05-15,行政部,电力,120,,办公用电,nan,0.581,657e2d96,69.72,tCO2e,范围2,外购电力,tCO2e/MWh,120.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,7,2024-06-15,行政部,电力,130,,办公用电,nan,0.581,6f7e6e68,75.53,tCO2e,范围2,外购电力,tCO2e/MWh,130.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,8,2024-07-15,研发部,电力,200,产品B,研发测试,nan,0.581,f7ba8631,116.19999999999999,tCO2e,范围2,外购电力,tCO2e/MWh,200.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,9,2024-08-15,研发部,电力,210,产品B,研发测试,nan,0.581,077ca2a1,122.00999999999999,tCO2e,范围2,外购电力,tCO2e/MWh,210.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,10,2024-09-15,销售部,电力,80,,办公,nan,0.581,5cfa70cf,46.48,tCO2e,范围2,外购电力,tCO2e/MWh,80.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,11,2024-10-15,销售部,电力,85,,办公,nan,0.581,b8eb6e27,49.385,tCO2e,范围2,外购电力,tCO2e/MWh,85.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,12,2024-11-15,生产部,电力,600,产品A,旺季生产,nan,0.581,5f95179f,348.59999999999997,tCO2e,范围2,外购电力,tCO2e/MWh,600.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)
+sample_emissions.xlsx,电力消耗数据,13,2024-12-15,生产部,电力,620,产品A,旺季生产,nan,0.581,ca2b4177,360.21999999999997,tCO2e,范围2,外购电力,tCO2e/MWh,620.0,nan,单位无法自动换算: nan → MWh,因子库(电力-华东电网)

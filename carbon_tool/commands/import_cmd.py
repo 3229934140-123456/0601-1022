@@ -18,9 +18,14 @@ def import_cmd():
 @click.option('--output', '-o', default='emissions_raw.csv', help='输出文件名')
 @click.option('--preview', '-p', is_flag=True, help='仅预览前10行数据，不保存')
 @click.option('--list-sheets', '-ls', is_flag=True, help='列出Excel文件的所有工作表')
+@click.option('--append', '-a', is_flag=True, help='追加到已有数据（保留原始数据）')
+@click.option('--no-source', is_flag=True, help='不添加来源追踪列')
 @click.pass_context
-def import_file(ctx, file_path, sheet, output, preview, list_sheets):
-    """从CSV/Excel文件导入排放数据"""
+def import_file(ctx, file_path, sheet, output, preview, list_sheets, append, no_source):
+    """从CSV/Excel文件导入排放数据
+
+    文件查找顺序: 当前目录 → 项目 data 目录
+    """
     config = ctx.obj['config']
     logger = ctx.obj['logger']
     dm = ctx.obj['dm']
@@ -29,11 +34,15 @@ def import_file(ctx, file_path, sheet, output, preview, list_sheets):
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
         ctx.exit(1)
 
-    file_path = Path(file_path)
-    if not file_path.exists():
-        click.echo(f"❌ 错误: 文件不存在: {file_path}")
+    resolved_path = _resolve_file_path(file_path, config.data_dir)
+    if not resolved_path:
+        click.echo(f"❌ 错误: 找不到文件 '{file_path}'")
+        click.echo(f"   已查找: 当前目录、{config.data_dir}")
         logger.log('import', {'file': str(file_path)}, 'failed', '文件不存在')
         ctx.exit(1)
+
+    file_path = resolved_path
+    file_name = file_path.name
 
     try:
         suffix = file_path.suffix.lower()
@@ -48,11 +57,26 @@ def import_file(ctx, file_path, sheet, output, preview, list_sheets):
             return
 
         sheet_param = sheet
+        sheet_name_display = ''
         if isinstance(sheet, str) and sheet.isdigit():
             sheet_param = int(sheet)
 
         df = read_file(file_path, sheet_param)
+
+        if isinstance(sheet_param, int) and suffix in ['.xlsx', '.xls']:
+            excel_file = pd.ExcelFile(file_path, engine='openpyxl')
+            if 0 <= sheet_param < len(excel_file.sheet_names):
+                sheet_name_display = excel_file.sheet_names[sheet_param]
+        elif isinstance(sheet_param, str):
+            sheet_name_display = sheet_param
+        elif suffix in ['.xlsx', '.xls']:
+            excel_file = pd.ExcelFile(file_path, engine='openpyxl')
+            if excel_file.sheet_names:
+                sheet_name_display = excel_file.sheet_names[0]
+
         click.echo(f"✅ 成功读取文件: {file_path}")
+        if sheet_name_display:
+            click.echo(f"   工作表: {sheet_name_display}")
         click.echo(f"   数据行数: {len(df)}")
         click.echo(f"   列数: {len(df.columns)}")
         click.echo(f"   列名: {', '.join(df.columns.tolist())}")
@@ -85,14 +109,35 @@ def import_file(ctx, file_path, sheet, output, preview, list_sheets):
                        f'预览{len(df)}行数据')
             return
 
+        if not no_source:
+            df.insert(0, 'source_file', file_name)
+            df.insert(1, 'source_sheet', sheet_name_display if sheet_name_display else '')
+            df.insert(2, 'source_row', range(2, len(df) + 2))
+
         output_path = config.data_dir / output
+        existing_rows = 0
+
+        if append and output_path.exists():
+            existing_df = pd.read_csv(output_path, encoding='utf-8-sig')
+            existing_rows = len(existing_df)
+            df = pd.concat([existing_df, df], ignore_index=True)
+            click.echo(f"\n🔗 追加模式: 已有 {existing_rows} 条，新增 {len(df) - existing_rows} 条")
+
         df.to_csv(output_path, index=False, encoding='utf-8-sig')
         click.echo(f"\n💾 数据已保存到: {output_path}")
+        click.echo(f"   总计 {len(df)} 条记录")
+        if not no_source:
+            click.echo(f"   已添加来源追踪列: source_file, source_sheet, source_row")
         click.echo("\n💡 提示: 运行 'carbon-tool import map -l' 查看字段映射")
         click.echo("   运行 'carbon-tool import apply' 应用字段映射后进行计算")
 
-        logger.log('import', {'file': str(file_path), 'output': str(output_path)}, 'success',
-                   f'导入{len(df)}行数据')
+        logger.log('import', {
+            'file': str(file_path),
+            'output': str(output_path),
+            'rows': len(df),
+            'append': append,
+            'sheet': sheet_name_display,
+        }, 'success', f'导入{len(df) - existing_rows if append else len(df)}行数据')
 
     except Exception as e:
         click.echo(f"❌ 导入失败: {e}")
@@ -197,6 +242,7 @@ def apply_mapping(ctx, input_file, output):
     config = ctx.obj['config']
     logger = ctx.obj['logger']
     dm = ctx.obj['dm']
+    audit = ctx.obj['audit']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -237,6 +283,16 @@ def apply_mapping(ctx, input_file, output):
         output_path = config.data_dir / output
         df_mapped.to_csv(output_path, index=False, encoding='utf-8-sig')
 
+        audit.record(
+            command='import.apply',
+            input_files=[str(input_path)],
+            output_file=str(output_path),
+            row_count=len(df_mapped),
+            parameters={'input': input_file, 'output': output, 'mappings': len(rename_dict)},
+            status='success',
+            message=f'应用{len(rename_dict)}个字段映射',
+        )
+
         click.echo(f"✅ 字段映射应用完成")
         click.echo(f"   映射字段数: {len(rename_dict)}")
         click.echo(f"   输出文件: {output_path}")
@@ -248,3 +304,19 @@ def apply_mapping(ctx, input_file, output):
         click.echo(f"❌ 应用映射失败: {e}")
         logger.log('import.apply', {'input': input_file, 'output': output}, 'failed', str(e))
         ctx.exit(1)
+
+
+SOURCE_COLUMNS = ['source_file', 'source_sheet', 'source_row']
+
+
+def _resolve_file_path(file_path, data_dir):
+    """解析文件路径：先当前目录，再项目 data 目录"""
+    p = Path(file_path)
+    if p.is_absolute():
+        return p if p.exists() else None
+    if p.exists():
+        return p.resolve()
+    in_data = Path(data_dir) / file_path
+    if in_data.exists():
+        return in_data.resolve()
+    return None

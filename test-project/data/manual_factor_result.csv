@@ -1,0 +1,4 @@
+﻿date,department,source_type,activity_data,activity_unit,emission_factor,factor_unit,remarks,id,emissions,emissions_unit,scope,category,original_activity_data,original_activity_unit,conversion_note,factor_source
+2024-01-15,生产部,特殊能源,1,t,2.5,tCO2e/t,手填因子测试,fa95cff1,2.5,tCO2e,,,1000.0,kg,1000 kg = 1 t,手填
+2024-02-15,生产部,特殊能源,2,t,2.5,tCO2e/t,手填因子测试,b01d7595,5.0,tCO2e,,,2000.0,kg,2000 kg = 2 t,手填
+2024-03-15,生产部,特殊能源,3,t,2.5,tCO2e/t,手填因子测试,d612af3a,7.5,tCO2e,,,3000.0,kg,3000 kg = 3 t,手填

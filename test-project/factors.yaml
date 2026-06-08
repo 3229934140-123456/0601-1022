@@ -4,39 +4,57 @@
   scope: 范围2
   category: 外购电力
   description: 华东电网电网排放因子（参考值）
+  tags:
+    region: 华东
+    year: '2022'
 天然气:
   factor: 2.1622
   unit: tCO2e/万m³
   scope: 范围1
   category: 固定燃烧
   description: 天然气燃烧排放因子
+  tags: {}
 汽油:
   factor: 2.9252
   unit: tCO2e/t
   scope: 范围1
   category: 移动燃烧
   description: 汽油燃烧排放因子
+  tags: {}
 柴油:
   factor: 3.1617
   unit: tCO2e/t
   scope: 范围1
   category: 移动燃烧
   description: 柴油燃烧排放因子
+  tags: {}
 原煤:
   factor: 2.6489
   unit: tCO2e/t
   scope: 范围1
   category: 固定燃烧
   description: 原煤燃烧排放因子
+  tags: {}
 自来水:
   factor: 0.00091
   unit: tCO2e/m³
   scope: 范围3
   category: 上游运输
   description: 自来水供应排放因子
+  tags: {}
 电力:
   factor: 0.581
   unit: tCO2e/MWh
   scope: 范围2
   category: 外购电力
   description: 电网排放因子
+  tags: {}
+电力-华北电网:
+  factor: 0.8843
+  unit: tCO2e/MWh
+  scope: 范围2
+  category: 外购电力
+  description: 华北电网排放因子
+  tags:
+    region: 华北
+    year: '2023'

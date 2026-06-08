@@ -21,6 +21,7 @@ def export_excel(ctx, input_file, output_file, year, threshold):
     config = ctx.obj['config']
     dm = ctx.obj['dm']
     logger = ctx.obj['logger']
+    audit = ctx.obj['audit']
 
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
@@ -140,6 +141,24 @@ def export_excel(ctx, input_file, output_file, year, threshold):
         logger.log('export.excel', {
             'input': input_file, 'output': output_file, 'sheets': list(sheets.keys())
         }, 'success', f'导出Excel，共{len(sheets)}个工作表')
+
+        total_emissions = df['emissions'].sum() if 'emissions' in df.columns else 0
+        audit.record(
+            command='export.excel',
+            input_files=[str(input_path)],
+            output_file=str(output_path),
+            row_count=len(df),
+            total_emissions=total_emissions,
+            parameters={
+                'input': input_file,
+                'output': output_file,
+                'year': year,
+                'threshold': threshold,
+                'sheets': list(sheets.keys()),
+            },
+            status='success',
+            message=f'导出{len(sheets)}个工作表',
+        )
 
     except Exception as e:
         click.echo(f"❌ 导出失败: {e}")

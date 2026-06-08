@@ -4,6 +4,7 @@ from . import __version__
 from .config import Config
 from .logger import CommandLogger
 from .data_manager import DataManager
+from .audit import AuditManager
 from .commands.init_cmd import init
 from .commands.import_cmd import import_cmd
 from .commands.factor_cmd import factor
@@ -13,6 +14,7 @@ from .commands.check_cmd import check
 from .commands.report_cmd import report
 from .commands.export_cmd import export
 from .commands.logs_cmd import logs
+from .commands.history_cmd import history
 
 
 @click.group()
@@ -51,6 +53,7 @@ def cli(ctx, project_path):
     ctx.obj['config'] = config
     ctx.obj['logger'] = CommandLogger(config.logs_dir)
     ctx.obj['dm'] = DataManager(config)
+    ctx.obj['audit'] = AuditManager(config.logs_dir / 'data_audit.jsonl')
 
 
 cli.add_command(init)
@@ -62,6 +65,7 @@ cli.add_command(check)
 cli.add_command(report)
 cli.add_command(export)
 cli.add_command(logs)
+cli.add_command(history)
 
 
 def main():

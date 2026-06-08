@@ -31,6 +31,7 @@ class EmissionFactor:
     scope: str
     category: str
     description: str = ""
+    tags: Dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

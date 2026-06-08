@@ -22,6 +22,7 @@ class DataManager:
                     scope=info.get('scope', ''),
                     category=info.get('category', ''),
                     description=info.get('description', ''),
+                    tags=info.get('tags', {}) or {},
                 )
         return data
 
@@ -34,6 +35,7 @@ class DataManager:
                 'scope': ef.scope,
                 'category': ef.category,
                 'description': ef.description,
+                'tags': ef.tags,
             }
         self.config.factors_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config.factors_file, 'w', encoding='utf-8') as f:
@@ -55,6 +57,30 @@ class DataManager:
     def get_factor(self, name: str) -> Optional[EmissionFactor]:
         factors = self.load_factors()
         return factors.get(name)
+
+    def find_factors(self, source_type: str, tags: Dict[str, str] = None) -> List[EmissionFactor]:
+        """按能源类型和标签查找候选因子（按匹配度排序）"""
+        factors = self.load_factors()
+        candidates = []
+        for name, ef in factors.items():
+            if source_type and source_type.lower() in name.lower():
+                candidates.append(ef)
+                continue
+            if ef.category and source_type and source_type.lower() in ef.category.lower():
+                candidates.append(ef)
+                continue
+        if tags:
+            scored = []
+            for ef in candidates:
+                match_count = sum(
+                    1 for k, v in tags.items()
+                    if k in ef.tags and str(ef.tags[k]).lower() == str(v).lower()
+                )
+                if match_count > 0 or not candidates:
+                    scored.append((match_count, ef))
+            scored.sort(key=lambda x: -x[0])
+            return [ef for _, ef in scored]
+        return candidates
 
     def load_mapping(self) -> List[FieldMapping]:
         data = []

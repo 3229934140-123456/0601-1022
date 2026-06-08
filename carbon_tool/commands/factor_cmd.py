@@ -66,8 +66,9 @@ def list_factors(ctx, scope, category):
 @click.option('--scope', '-s', required=True, help='排放范围（范围1/范围2/范围3）')
 @click.option('--category', '-c', required=True, help='排放类别')
 @click.option('--description', '-d', default='', help='描述说明')
+@click.option('--tag', '-t', 'tags', multiple=True, help='标签，格式 key=value（可重复）')
 @click.pass_context
-def add_factor(ctx, name, value, unit, scope, category, description):
+def add_factor(ctx, name, value, unit, scope, category, description, tags):
     """新增排放因子"""
     config = ctx.obj['config']
     logger = ctx.obj['logger']
@@ -77,6 +78,13 @@ def add_factor(ctx, name, value, unit, scope, category, description):
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
         ctx.exit(1)
 
+    tag_dict = {}
+    if tags:
+        for t in tags:
+            if '=' in t:
+                k, v = t.split('=', 1)
+                tag_dict[k.strip()] = v.strip()
+
     try:
         ef = EmissionFactor(
             name=name,
@@ -84,13 +92,17 @@ def add_factor(ctx, name, value, unit, scope, category, description):
             unit=unit,
             scope=scope,
             category=category,
-            description=description
+            description=description,
+            tags=tag_dict,
         )
         dm.add_factor(ef)
         click.echo(f"✅ 排放因子 '{name}' 添加成功")
         click.echo(f"   值: {value} {unit}")
         click.echo(f"   范围: {scope}")
         click.echo(f"   类别: {category}")
+        if tag_dict:
+            tag_str = ', '.join(f"{k}={v}" for k, v in tag_dict.items())
+            click.echo(f"   标签: {tag_str}")
         logger.log('factor.add', {'name': name}, 'success', f'添加排放因子: {name}')
 
     except Exception as e:
@@ -106,8 +118,11 @@ def add_factor(ctx, name, value, unit, scope, category, description):
 @click.option('--scope', '-s', help='排放范围')
 @click.option('--category', '-c', help='排放类别')
 @click.option('--description', '-d', help='描述说明')
+@click.option('--tag', '-t', 'tags', multiple=True, help='添加/更新标签，格式 key=value（可重复）')
+@click.option('--remove-tag', 'remove_tags', multiple=True, help='移除标签（按 key）')
+@click.option('--clear-tags', is_flag=True, help='清除所有标签')
 @click.pass_context
-def update_factor(ctx, name, value, unit, scope, category, description):
+def update_factor(ctx, name, value, unit, scope, category, description, tags, remove_tags, clear_tags):
     """更新排放因子"""
     config = ctx.obj['config']
     logger = ctx.obj['logger']
@@ -116,6 +131,13 @@ def update_factor(ctx, name, value, unit, scope, category, description):
     if not config.is_initialized():
         click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
         ctx.exit(1)
+
+    tag_updates = {}
+    if tags:
+        for t in tags:
+            if '=' in t:
+                k, v = t.split('=', 1)
+                tag_updates[k.strip()] = v.strip()
 
     try:
         existing = dm.get_factor(name)
@@ -134,14 +156,75 @@ def update_factor(ctx, name, value, unit, scope, category, description):
             existing.category = category
         if description is not None:
             existing.description = description
+        if clear_tags:
+            existing.tags = {}
+        if remove_tags:
+            for rt in remove_tags:
+                existing.tags.pop(rt, None)
+        if tag_updates:
+            existing.tags.update(tag_updates)
 
         dm.add_factor(existing)
         click.echo(f"✅ 排放因子 '{name}' 更新成功")
+        if tag_updates:
+            tag_str = ', '.join(f"{k}={v}" for k, v in tag_updates.items())
+            click.echo(f"   新增/更新标签: {tag_str}")
         logger.log('factor.update', {'name': name}, 'success', f'更新排放因子: {name}')
 
     except Exception as e:
         click.echo(f"❌ 更新失败: {e}")
         logger.log('factor.update', {'name': name}, 'failed', str(e))
+        ctx.exit(1)
+
+
+@factor.command('search')
+@click.argument('keyword')
+@click.option('--tag', '-t', 'tags', multiple=True, help='按标签筛选，格式 key=value（可重复）')
+@click.pass_context
+def search_factor(ctx, keyword, tags):
+    """搜索排放因子（按名称/类别/标签）"""
+    config = ctx.obj['config']
+    logger = ctx.obj['logger']
+    dm = ctx.obj['dm']
+
+    if not config.is_initialized():
+        click.echo("❌ 错误: 当前目录不是碳管理项目，请先运行 'carbon-tool init'")
+        ctx.exit(1)
+
+    tag_dict = {}
+    if tags:
+        for t in tags:
+            if '=' in t:
+                k, v = t.split('=', 1)
+                tag_dict[k.strip()] = v.strip()
+
+    try:
+        candidates = dm.find_factors(keyword, tag_dict)
+        if not candidates:
+            click.echo(f"🔍 未找到匹配的排放因子: {keyword}")
+            return
+
+        click.echo(f"🔍 找到 {len(candidates)} 个候选因子:")
+        table = []
+        for i, f in enumerate(candidates):
+            tag_str = ', '.join(f"{k}={v}" for k, v in f.tags.items()) if f.tags else ''
+            table.append([
+                f"[{i}]",
+                f.name,
+                f.factor,
+                f.unit,
+                f.scope,
+                tag_str,
+            ])
+        click.echo(tabulate(table, headers=['', '名称', '因子值', '单位', '范围', '标签'],
+                            tablefmt='simple', floatfmt='.4f'))
+
+        logger.log('factor.search', {'keyword': keyword, 'tags': tag_dict}, 'success',
+                   f'找到{len(candidates)}个候选因子')
+
+    except Exception as e:
+        click.echo(f"❌ 搜索失败: {e}")
+        logger.log('factor.search', {'keyword': keyword}, 'failed', str(e))
         ctx.exit(1)
 
 

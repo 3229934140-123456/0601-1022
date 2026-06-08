@@ -1,0 +1,4 @@
+﻿date,department,source_type,activity_data,activity_unit,emission_factor,factor_unit,remarks
+2024-01-15,生产部,特殊能源,1000,kg,2.5,tCO2e/t,手填因子测试
+2024-02-15,生产部,特殊能源,2000,kg,2.5,tCO2e/t,手填因子测试
+2024-03-15,生产部,特殊能源,3000,kg,2.5,tCO2e/t,手填因子测试
