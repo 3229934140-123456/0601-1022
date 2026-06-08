@@ -14,6 +14,11 @@ class Config:
         'targets_file': 'targets.yaml',
         'reductions_file': 'reductions.yaml',
         'allocations_file': 'product_allocations.yaml',
+        'defaults': {
+            'region': '',
+            'year': '',
+            'scenario': '',
+        },
     }
 
     def __init__(self, project_path=None):

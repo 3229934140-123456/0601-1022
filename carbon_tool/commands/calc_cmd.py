@@ -80,10 +80,15 @@ def _extract_factor_unit(unit_str):
 @click.option('--summary', '-s', is_flag=True, help='显示汇总信息')
 @click.option('--unit-check/--no-unit-check', default=True, help='是否启用单位自动换算')
 @click.option('--tag', '-t', 'tags', multiple=True, help='因子标签筛选，格式 key=value（可重复）')
-@click.option('--factor-mode', default='best', type=click.Choice(['best', 'first', 'all']),
-              help='多因子匹配策略: best=最优匹配, first=第一个, all=全部列出(调试用)')
+@click.option('--region', help='排放因子地区（优先于预设）')
+@click.option('--year', help='排放因子年份（优先于预设）')
+@click.option('--scenario', help='排放因子情景（优先于预设）')
+@click.option('--gaps-output', 'gaps_output', help='缺口清单输出文件名')
+@click.option('--factor-mode', default='strict', type=click.Choice(['strict', 'best', 'first']),
+              help='多因子匹配策略: strict=严格匹配(缺则报错), best=最优匹配, first=第一个')
 @click.pass_context
-def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
+def run_calc(ctx, input_file, output, summary, unit_check, tags,
+             region, year, scenario, gaps_output, factor_mode):
     """批量计算排放量（支持单位自动换算、手填因子、多候选因子筛选）"""
     config = ctx.obj['config']
     logger = ctx.obj['logger']
@@ -100,12 +105,24 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
         logger.log('calc.run', {'input': input_file}, 'failed', '输入文件不存在')
         ctx.exit(1)
 
+    defaults = config.get('defaults', {}) or {}
     tag_dict = {}
     if tags:
         for t in tags:
             if '=' in t:
                 k, v = t.split('=', 1)
                 tag_dict[k.strip()] = v.strip()
+
+    eff_region = region if region is not None else defaults.get('region', '')
+    eff_year = year if year is not None else str(defaults.get('year', ''))
+    eff_scenario = scenario if scenario is not None else defaults.get('scenario', '')
+
+    if eff_region:
+        tag_dict['region'] = eff_region
+    if eff_year:
+        tag_dict['year'] = str(eff_year)
+    if eff_scenario:
+        tag_dict['scenario'] = eff_scenario
 
     try:
         df = pd.read_csv(input_path, encoding='utf-8-sig')
@@ -117,16 +134,18 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
         unit_converted = 0
         manual_factor = 0
         factor_library = 0
+        unit_mismatch = 0
         gap_records = []
 
         if 'id' not in df.columns:
             df['id'] = [str(uuid.uuid4())[:8] for _ in range(len(df))]
         for col in ['emissions', 'emission_factor', 'activity_data']:
             if col not in df.columns:
-                df[col] = 0.0 if col != 'emission_factor' else 0.0
+                df[col] = 0.0
         for col in ['emissions_unit', 'scope', 'category', 'factor_unit',
                     'activity_unit', 'original_activity_data',
-                    'original_activity_unit', 'conversion_note', 'factor_source']:
+                    'original_activity_unit', 'conversion_note', 'factor_source',
+                    'calc_status']:
             if col not in df.columns:
                 df[col] = ''
         df['emissions_unit'] = 'tCO2e'
@@ -141,6 +160,7 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
             activity_unit = str(row.get('activity_unit', '')).strip()
             manual_ef = safe_float(row.get('emission_factor', 0))
             manual_fu = str(row.get('factor_unit', '')).strip()
+            exist_status = str(row.get('calc_status', '')).strip()
 
             original_data = activity_data
             original_unit = activity_unit
@@ -150,12 +170,14 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
             ef_category = ''
             ef_source = ''
             conv_note = ''
+            calc_status = '未计算'
 
             if activity_data == 0:
                 missing_activity += 1
                 gap_records.append(_make_gap_record(
                     idx, row, '缺少活动数据', source_type, activity_unit
                 ))
+                df.at[idx, 'calc_status'] = '未计算-无活动数据'
                 continue
 
             if manual_ef > 0 and manual_fu:
@@ -167,8 +189,26 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
                 candidates = dm.find_factors(source_type, tag_dict)
                 if not candidates and source_type in factors_all:
                     candidates = [factors_all[source_type]]
+
                 if candidates:
-                    ef_obj = candidates[0]
+                    if factor_mode == 'strict' and tag_dict:
+                        perfect_match = False
+                        for c in candidates:
+                            if all(c.tags.get(k) == str(v) for k, v in tag_dict.items()):
+                                ef_obj = c
+                                perfect_match = True
+                                break
+                        if not perfect_match:
+                            missing_factor += 1
+                            gap_records.append(_make_gap_record(
+                                idx, row, '无严格匹配的因子', source_type, activity_unit,
+                                f'期望标签: {tag_dict}'
+                            ))
+                            df.at[idx, 'calc_status'] = '未计算-缺因子'
+                            continue
+                    else:
+                        ef_obj = candidates[0]
+
                     ef_value = ef_obj.factor
                     fu_value = ef_obj.unit
                     ef_scope = ef_obj.scope
@@ -180,32 +220,49 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
                     gap_records.append(_make_gap_record(
                         idx, row, '未找到排放因子', source_type, activity_unit
                     ))
+                    df.at[idx, 'calc_status'] = '未计算-缺因子'
                     continue
             else:
                 missing_factor += 1
                 gap_records.append(_make_gap_record(
                     idx, row, '缺少能源类型和因子', source_type, activity_unit
                 ))
+                df.at[idx, 'calc_status'] = '未计算-缺因子'
                 continue
 
+            converted_ok = True
             if unit_check and activity_unit and fu_value:
                 factor_emission_unit, factor_activity_unit = _extract_factor_unit(fu_value)
                 if factor_activity_unit and activity_unit and activity_unit != factor_activity_unit:
                     converted_data, note = _convert_unit(
                         activity_data, activity_unit, factor_activity_unit
                     )
-                    if note:
+                    if note and '=' in note:
                         activity_data = converted_data
                         conv_note = note
                         unit_converted += 1
                     else:
-                        conv_note = f'单位无法自动换算: {activity_unit} → {factor_activity_unit}'
+                        converted_ok = False
+                        unit_mismatch += 1
+                        conv_note = f'单位无法换算: {activity_unit} → {factor_activity_unit}'
                         gap_records.append(_make_gap_record(
                             idx, row, '单位不匹配且无法换算', source_type, activity_unit,
                             f'因子单位: {fu_value}'
                         ))
 
+            if not converted_ok:
+                df.at[idx, 'calc_status'] = '未计算-单位不匹配'
+                df.at[idx, 'emission_factor'] = ef_value
+                df.at[idx, 'factor_unit'] = fu_value
+                df.at[idx, 'factor_source'] = ef_source
+                df.at[idx, 'conversion_note'] = conv_note
+                df.at[idx, 'original_activity_data'] = original_data
+                df.at[idx, 'original_activity_unit'] = original_unit
+                df.at[idx, 'emissions'] = 0.0
+                continue
+
             emissions = activity_data * ef_value
+            calc_status = '已计算'
 
             df.at[idx, 'emission_factor'] = ef_value
             df.at[idx, 'factor_unit'] = fu_value
@@ -218,47 +275,41 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
             df.at[idx, 'original_activity_unit'] = original_unit
             df.at[idx, 'conversion_note'] = conv_note
             df.at[idx, 'activity_data'] = activity_data
-            df.at[idx, 'activity_unit'] = factor_activity_unit if (conv_note and '=' in conv_note) else activity_unit
+            df.at[idx, 'activity_unit'] = factor_activity_unit if conv_note else activity_unit
             df.at[idx, 'emissions'] = emissions
+            df.at[idx, 'calc_status'] = calc_status
             calculated += 1
 
         output_path = config.data_dir / output
         df.to_csv(output_path, index=False, encoding='utf-8-sig')
 
         click.echo(f"✅ 计算完成")
-        click.echo(f"   总记录数: {total_rows}")
-        click.echo(f"   成功计算: {calculated} 条")
+        click.echo(f"   总记录数:     {total_rows}")
+        click.echo(f"   已计算:       {calculated} 条")
         click.echo(f"     ├─ 因子库匹配: {factor_library} 条")
         click.echo(f"     └─ 手填因子: {manual_factor} 条")
-        click.echo(f"   单位换算: {unit_converted} 条")
-        click.echo(f"   缺失/异常: {len(gap_records)} 条")
+        click.echo(f"   单位换算:     {unit_converted} 条")
+        click.echo(f"   未计算:       {total_rows - calculated} 条")
+        click.echo(f"     ├─ 缺少活动数据: {missing_activity} 条")
+        click.echo(f"     ├─ 缺少排放因子: {missing_factor} 条")
+        click.echo(f"     └─ 单位不匹配: {unit_mismatch} 条")
 
         if gap_records:
-            click.echo(f"\n📋 缺口清单 ({len(gap_records)} 条):")
-            table = []
-            for r in gap_records[:30]:
-                table.append([
-                    r['行号'],
-                    r.get('来源文件', '')[:15],
-                    r['能源类型'],
-                    r['活动单位'],
-                    r['原因'],
-                    r.get('备注', '')[:20],
-                ])
-            click.echo(tabulate(
-                table,
-                headers=['行号', '来源文件', '能源类型', '活动单位', '原因', '备注'],
-                tablefmt='simple'
-            ))
-            if len(gap_records) > 30:
-                click.echo(f"   ... 还有 {len(gap_records) - 30} 条未显示")
+            _print_gap_summary(gap_records, tag_dict)
+
+        if gaps_output and gap_records:
+            gaps_path = config.data_dir / gaps_output
+            pd.DataFrame(gap_records).to_csv(gaps_path, index=False, encoding='utf-8-sig')
+            click.echo(f"\n💾 缺口清单已保存到: {gaps_path}")
 
         if summary:
-            _print_summary(df)
+            _print_summary(df[df['calc_status'] == '已计算'] if 'calc_status' in df.columns else df)
 
-        total_emissions = df['emissions'].sum()
+        total_emissions = df['emissions'].sum() if calculated > 0 else 0
+        calc_emissions = df[df['calc_status'] == '已计算']['emissions'].sum() if 'calc_status' in df.columns else total_emissions
+
         logger.log('calc.run', {'input': input_file, 'output': output}, 'success',
-                   f'计算{calculated}条记录，总排放量{format_number(total_emissions, 2)} tCO2e',
+                   f'计算{calculated}条记录，总排放量{format_number(calc_emissions, 2)} tCO2e',
                    details={
                        'total_rows': total_rows,
                        'calculated': calculated,
@@ -267,25 +318,29 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
                        'unit_converted': unit_converted,
                        'missing_activity': missing_activity,
                        'missing_factor': missing_factor,
-                       'total_emissions': total_emissions,
+                       'unit_mismatch': unit_mismatch,
+                       'total_emissions': calc_emissions,
                        'tags': tag_dict,
+                       'factor_mode': factor_mode,
                    })
 
         audit.record(
             command='calc.run',
             input_files=[str(input_path)],
             output_file=str(output_path),
-            row_count=len(df),
-            total_emissions=total_emissions,
+            row_count=calculated,
+            total_emissions=calc_emissions,
             parameters={
                 'input': input_file,
                 'output': output,
                 'unit_check': unit_check,
                 'tags': tag_dict,
                 'factor_mode': factor_mode,
+                'total_rows': total_rows,
+                'calculated_rows': calculated,
             },
             status='success',
-            message=f'计算{calculated}条，总排放{format_number(total_emissions, 2)} tCO2e',
+            message=f'计算{calculated}条（共{total_rows}条），总排放{format_number(calc_emissions, 2)} tCO2e',
         )
 
     except Exception as e:
@@ -294,6 +349,54 @@ def run_calc(ctx, input_file, output, summary, unit_check, tags, factor_mode):
         traceback.print_exc()
         logger.log('calc.run', {'input': input_file, 'output': output}, 'failed', str(e))
         ctx.exit(1)
+
+
+def _print_gap_summary(gap_records, tag_dict):
+    """打印缺口分类汇总"""
+    click.echo(f"\n📋 缺口明细 ({len(gap_records)} 条):")
+
+    reasons = {}
+    for r in gap_records:
+        reason = r.get('原因', '未知')
+        if reason not in reasons:
+            reasons[reason] = []
+        reasons[reason].append(r)
+
+    for reason, items in reasons.items():
+        click.echo(f"\n  ▸ {reason}: {len(items)} 条")
+        by_source = {}
+        for r in items:
+            st = r.get('能源类型', '未知') or '未知'
+            if st not in by_source:
+                by_source[st] = 0
+            by_source[st] += 1
+        for st, cnt in sorted(by_source.items(), key=lambda x: -x[1]):
+            click.echo(f"    • {st}: {cnt} 条")
+
+    if tag_dict:
+        tag_str = ', '.join(f"{k}={v}" for k, v in tag_dict.items())
+        click.echo(f"\n💡 当前筛选标签: {tag_str}")
+        click.echo("   可用 --region/--year/--scenario 调整，或 --factor-mode best 放宽匹配")
+
+    show_count = min(10, len(gap_records))
+    click.echo(f"\n  前 {show_count} 条详情:")
+    table = []
+    for r in gap_records[:show_count]:
+        table.append([
+            r['行号'],
+            r.get('来源文件', '')[:15],
+            r.get('能源类型', ''),
+            r.get('活动单位', ''),
+            r.get('原因', ''),
+            r.get('备注', '')[:25],
+        ])
+    click.echo(tabulate(
+        table,
+        headers=['行号', '来源文件', '能源类型', '活动单位', '原因', '备注'],
+        tablefmt='simple'
+    ))
+    if len(gap_records) > show_count:
+        click.echo(f"  ... 还有 {len(gap_records) - show_count} 条，可用 --gaps-output 导出全部")
 
 
 @calc.command('summary')
